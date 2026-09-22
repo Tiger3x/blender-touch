@@ -359,6 +359,9 @@ class GHOST_SystemWin32 : public GHOST_System {
   static void processPointerEvent(
       UINT type, GHOST_WindowWin32 *window, WPARAM wParam, LPARAM lParam, bool &eventhandled);
 
+  /** Cancel all active touch contacts owned by a Blender window. */
+  static void cancelTouchContacts(GHOST_WindowWin32 *window);
+
   /**
    * Creates cursor event.
    * \param window: The window receiving the event (the active window).
@@ -488,8 +491,13 @@ class GHOST_SystemWin32 : public GHOST_System {
   /** Console status. */
   bool console_status_;
 
+  struct ActiveTouchContact {
+    GHOST_WindowWin32 *window;
+    GHOST_TEventTouchData data;
+  };
+
   /** Active native touch contacts, keyed by Windows pointer id. */
-  std::unordered_map<uint32_t, GHOST_TEventTouchData> active_touch_contacts_;
+  std::unordered_map<uint32_t, ActiveTouchContact> active_touch_contacts_;
 
   /** Wheel delta accumulators. */
   int wheel_delta_accum_vertical_;
