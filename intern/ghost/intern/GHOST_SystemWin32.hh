@@ -16,6 +16,8 @@
 #include <ole2.h> /* For drag-n-drop. */
 #include <windows.h>
 
+#include <unordered_map>
+
 #include "GHOST_System.hh"
 
 class GHOST_EventButton;
@@ -485,6 +487,9 @@ class GHOST_SystemWin32 : public GHOST_System {
 
   /** Console status. */
   bool console_status_;
+
+  /** Active native touch contacts, keyed by Windows pointer id. */
+  std::unordered_map<uint32_t, GHOST_TEventTouchData> active_touch_contacts_;
 
   /** Wheel delta accumulators. */
   int wheel_delta_accum_vertical_;
