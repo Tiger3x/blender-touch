@@ -41,6 +41,14 @@ struct GHOST_PointerInfoWin32 {
   GHOST_TabletData tabletData;
 };
 
+struct GHOST_TouchInfoWin32 {
+  uint32_t pointerId;
+  bool isPrimary;
+  POINT pixelLocation;
+  float pressure;
+  uint64_t time;
+};
+
 typedef enum {
   MousePressed,
   MouseReleased,
@@ -246,6 +254,14 @@ class GHOST_WindowWin32 : public GHOST_Window {
    * \param api: Tablet API to test.
    */
   bool usingTabletAPI(GHOST_TTabletAPI api) const;
+
+  /**
+   * Translate a PT_TOUCH WM_POINTER event into touch contact samples.
+   * Historical samples are returned newest-first, matching the Windows API.
+   */
+  GHOST_TSuccess getTouchInfo(std::vector<GHOST_TouchInfoWin32> &outTouchInfo,
+                              WPARAM wParam,
+                              LPARAM lParam);
 
   /**
    * Translate WM_POINTER events into GHOST_PointerInfoWin32 structs.
