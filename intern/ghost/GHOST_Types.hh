@@ -391,7 +391,13 @@ enum GHOST_TEventType {
   GHOST_kEventImeComposition,
   GHOST_kEventImeCompositionEnd,
 
-#define GHOST_kNumEventTypes (GHOST_kEventImeCompositionEnd + 1)
+  /** Native multi-touch contact lifecycle events. */
+  GHOST_kEventTouchDown,
+  GHOST_kEventTouchMove,
+  GHOST_kEventTouchUp,
+  GHOST_kEventTouchCancel,
+
+#define GHOST_kNumEventTypes (GHOST_kEventTouchCancel + 1)
 };
 
 enum GHOST_TStandardCursor {
@@ -642,6 +648,21 @@ struct GHOST_TEventCursorData {
   int32_t y;
   /** Associated tablet data. */
   GHOST_TabletData tablet;
+};
+
+/** Native touch contact data. Coordinates are in screen pixels. */
+struct GHOST_TEventTouchData {
+  /** Stable pointer/contact identifier supplied by the operating system. */
+  uint32_t id;
+  /** Screen-space contact position. */
+  int32_t x;
+  int32_t y;
+  /** Normalized pressure in the range 0.0 to 1.0 when available. */
+  float pressure;
+  /** Number of contacts that remain active after this event is applied. */
+  uint32_t contact_count;
+  /** True when this is the platform's primary touch contact. */
+  bool is_primary;
 };
 
 struct GHOST_TEventButtonData {
