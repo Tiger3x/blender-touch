@@ -1,0 +1,26 @@
+name: Blender Touch Windows Validation
+
+on:
+  push:
+    branches:
+      - feature/touch-input-layer
+  workflow_dispatch:
+
+jobs:
+  windows-lite-build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout Blender Touch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Update Blender dependencies
+        shell: cmd
+        run: make.bat update
+
+      - name: Build Blender Lite
+        shell: cmd
+        run: make.bat lite
