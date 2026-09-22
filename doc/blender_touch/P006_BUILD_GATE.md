@@ -19,8 +19,9 @@ Prove that the native touch foundation is integrated into Blender without regres
 - [x] Raw touch events do not mutate the persistent mouse cursor state.
 - [x] RNA and event debug output know the new touch event types.
 - [x] Keymap infrastructure classifies raw touch as pointing-device input.
-- [ ] Windows Lite build succeeds.
-- [ ] Windows normal build succeeds.
+- [x] Windows Lite build succeeds ([Build #12](https://github.com/Tiger3x/blender-touch/actions/runs/35758654170); also verified locally with Ninja).
+- [x] Windows normal build succeeds ([Build #12](https://github.com/Tiger3x/blender-touch/actions/runs/35758654170); also verified locally with Ninja and a headless startup test).
+- [x] Portable artifact is published by CI (`Blender-Touch-Windows-x64-P006-12`).
 - [ ] Mouse regression smoke test passes.
 - [ ] Keyboard regression smoke test passes.
 - [ ] Windows Ink / pen regression smoke test passes.
@@ -58,3 +59,6 @@ Run Blender with event debugging enabled and verify:
 
 P006 is complete only when both build gates and all smoke tests above pass.
 Gesture implementation must not begin before this gate is green.
+
+The revised sequence and the distinction between completed build gates and
+pending hardware validation are recorded in [ROADMAP.md](ROADMAP.md).
