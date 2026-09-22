@@ -6164,6 +6164,59 @@ void wm_event_add_ghostevent(wmWindowManager *wm,
 
       break;
     }
+    case GHOST_kEventTouchDown:
+    case GHOST_kEventTouchMove:
+    case GHOST_kEventTouchUp:
+    case GHOST_kEventTouchCancel: {
+      const GHOST_TEventTouchData *touch_data = static_cast<const GHOST_TEventTouchData *>(
+          customdata);
+      if (touch_data == nullptr) {
+        BLI_assert_unreachable();
+        break;
+      }
+
+      event.xy[0] = touch_data->x;
+      event.xy[1] = touch_data->y;
+      wm_cursor_position_from_ghost_screen_coords(win, &event.xy[0], &event.xy[1]);
+      wm_stereo3d_mouse_offset_apply(win, event.xy);
+
+      switch (type) {
+        case GHOST_kEventTouchDown:
+          event.type = TOUCHDOWN;
+          event.val = KM_PRESS;
+          break;
+        case GHOST_kEventTouchMove:
+          event.type = TOUCHMOVE;
+          event.val = KM_NOTHING;
+          break;
+        case GHOST_kEventTouchUp:
+          event.type = TOUCHUP;
+          event.val = KM_RELEASE;
+          break;
+        case GHOST_kEventTouchCancel:
+          event.type = TOUCHCANCEL;
+          event.val = KM_RELEASE;
+          break;
+        default:
+          BLI_assert_unreachable();
+          break;
+      }
+
+      wmTouchData *wm_touch_data = MEM_new<wmTouchData>(__func__);
+      wm_touch_data->id = touch_data->id;
+      wm_touch_data->pressure = touch_data->pressure;
+      wm_touch_data->contact_count = touch_data->contact_count;
+      wm_touch_data->is_primary = touch_data->is_primary;
+
+      event.custom = EVT_DATA_TOUCH;
+      event.customdata = wm_touch_data;
+      event.customdata_free = true;
+
+      /* Touch coordinates intentionally do not update event_state->xy. Mouse and touch are
+       * independent pointing devices; gesture recognition consumes the raw touch stream. */
+      wm_event_add_intern(win, &event);
+      break;
+    }
     case GHOST_kEventTrackpad: {
       const GHOST_TEventTrackpadData *pd = static_cast<const GHOST_TEventTrackpadData *>(
           customdata);
