@@ -44,6 +44,7 @@ struct GHOST_PointerInfoWin32 {
 struct GHOST_TouchInfoWin32 {
   uint32_t pointerId;
   bool isPrimary;
+  bool isCanceled;
   POINT pixelLocation;
   float pressure;
   uint64_t time;
