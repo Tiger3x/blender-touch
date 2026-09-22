@@ -25,7 +25,7 @@ abaixo tem um resultado observável e um critério de saída.
 | Marco | Estado | Evidência ou pendência |
 | --- | --- | --- |
 | P001–P005 — base de entrada | Implementada | Tipos de evento, payload, captura Win32, contatos e cancelamento estão no código. |
-| P006 — integração e build | Em validação | [Build #12 do CI](https://github.com/Tiger3x/blender-touch/actions/runs/35758654170) concluiu Lite e completo e publicou o artefato portátil. Os builds Lite e completo locais também passaram com Ninja; o executável completo iniciou em modo de teste. Faltam os testes físicos. |
+| P006 — integração e build | Em validação | [Build #12 do CI](https://github.com/Tiger3x/blender-touch/actions/runs/35758654170) publicou o primeiro artefato. Lite e completo locais passaram com Ninja. No Galaxy Book, toque com até três dedos e cancelamento após `Alt+Tab` passaram; mouse, teclado, pressão e borracha da S Pen pareceram normais. Faltam medir a inclinação da S Pen e obter um artefato de CI com a correção do cancelamento. |
 | P007–P010 — fluxo nativo | Implementado; falta validar | O fluxo Windows → GHOST → Window Manager já existe. Corrigir falhas que o teste físico revelar. |
 | P011–P038 — interação, gestos, interface e release | Pendente | Seguir os marcos abaixo depois de fechar P006. |
 

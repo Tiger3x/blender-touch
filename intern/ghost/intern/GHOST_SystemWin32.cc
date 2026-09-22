@@ -1171,6 +1171,17 @@ void GHOST_SystemWin32::processPointerEvent(
   }
 
   if (pointer_type == PT_TOUCH) {
+    /* A contact canceled on window deactivation or capture loss can still receive native
+     * updates and an up event when the window becomes active again. Do not recreate that
+     * contact without a new down event. */
+    if (type != WM_POINTERDOWN) {
+      const auto active = system->active_touch_contacts_.find(pointer_id);
+      if (active == system->active_touch_contacts_.end() || active->second.window != window) {
+        eventHandled = true;
+        return;
+      }
+    }
+
     std::vector<GHOST_TouchInfoWin32> touch_info;
     const bool have_touch_info = window->getTouchInfo(touch_info, wParam, lParam) == GHOST_kSuccess &&
                                  !touch_info.empty();
