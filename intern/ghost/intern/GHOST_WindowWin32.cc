@@ -870,6 +870,7 @@ GHOST_TSuccess GHOST_WindowWin32::getTouchInfo(
     GHOST_TouchInfoWin32 &out = outTouchInfo[0];
     out.pointerId = pointerId;
     out.isPrimary = isPrimary;
+    out.isCanceled = (touchInfo.pointerInfo.pointerFlags & POINTER_FLAG_CANCELED) != 0;
     out.pixelLocation = touchInfo.pointerInfo.ptPixelLocation;
     out.pressure = (touchInfo.touchMask & TOUCH_MASK_PRESSURE) ?
                        std::clamp(touchInfo.pressure / 1024.0f, 0.0f, 1.0f) :
@@ -889,6 +890,7 @@ GHOST_TSuccess GHOST_WindowWin32::getTouchInfo(
     GHOST_TouchInfoWin32 &out = outTouchInfo[i];
     out.pointerId = pointerId;
     out.isPrimary = isPrimary;
+    out.isCanceled = (touchInfo.pointerInfo.pointerFlags & POINTER_FLAG_CANCELED) != 0;
     out.pixelLocation = touchInfo.pointerInfo.ptPixelLocation;
     out.pressure = (touchInfo.touchMask & TOUCH_MASK_PRESSURE) ?
                        std::clamp(touchInfo.pressure / 1024.0f, 0.0f, 1.0f) :
