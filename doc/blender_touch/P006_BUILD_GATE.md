@@ -24,7 +24,7 @@ Prove that the native touch foundation is integrated into Blender without regres
 - [x] Portable artifact is published by CI (`Blender-Touch-Windows-x64-P006-12`).
 - [x] Mouse regression smoke test passes on the Galaxy Book touchpad (user-observed).
 - [x] Keyboard regression smoke test passes on the Galaxy Book (`G` / `Esc`, user-observed).
-- [ ] Windows Ink / pen regression smoke test passes.
+- [x] Windows Ink / pen regression smoke test passes (normal interaction and stylus telemetry verified on the Galaxy Book).
 - [x] Physical touchscreen smoke test passes on the target 2-in-1 device (one, two and three contacts; cancellation retested after the fix).
 
 ## Windows validation commands
@@ -65,8 +65,14 @@ simultaneous contacts with distinct IDs. After holding a finger and switching
 windows, contact 2081 ended with `TOUCH_CANCEL` and emitted no later move or up
 events. A fresh touch used ID 2082 and completed with `TOUCH_UP`. No duplicate
 mouse click appeared with these contacts. Mouse, keyboard, S Pen pressure and
-eraser behavior looked normal to the user. Pen tilt still needs specific
-confirmation. The CI Build #12 artifact predates the cancellation fix;
+eraser behavior looked normal to the user. With Windows Ink selected, a focused
+event probe recorded pen pressure and changing, nonzero tilt values, including
+`(0.1222, 0.0778)` and `(0.0000, 0.1222)`. A separate run with Windows Ink but
+without the modal probe confirmed that touchpad clicks and S Pen clicks both
+work normally. The modal probe itself interfered with normal interaction, so
+its apparent UI freeze is not evidence of a Blender runtime regression. A brush
+response to tilt was not assessed in Object Mode; this gate verifies that tilt
+data reaches Blender. The CI Build #12 artifact predates the cancellation fix;
 an updated CI artifact must be checked before closing P006.
 
 The revised sequence and the distinction between completed build gates and
