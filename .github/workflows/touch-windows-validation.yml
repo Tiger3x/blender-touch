@@ -12,7 +12,7 @@ on:
 jobs:
   windows-lite-build:
     runs-on: windows-2022
-    timeout-minutes: 90
+    timeout-minutes: 180
 
     steps:
       - name: Checkout Blender Touch
@@ -22,7 +22,7 @@ jobs:
 
       - name: Update Blender dependencies
         shell: cmd
-        run: make.bat update
+        run: echo y|call make.bat update
 
       - name: Build Blender Lite
         shell: cmd
