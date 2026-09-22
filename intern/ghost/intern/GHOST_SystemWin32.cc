@@ -1105,22 +1105,61 @@ void GHOST_SystemWin32::processWintabEvent(GHOST_WindowWin32 *window)
   }
 }
 
+void GHOST_SystemWin32::cancelTouchContacts(GHOST_WindowWin32 *window)
+{
+  GHOST_SystemWin32 *system = (GHOST_SystemWin32 *)getSystem();
+
+  for (auto it = system->active_touch_contacts_.begin();
+       it != system->active_touch_contacts_.end();)
+  {
+    if (it->second.window != window) {
+      ++it;
+      continue;
+    }
+
+    GHOST_TEventTouchData data = it->second.data;
+    it = system->active_touch_contacts_.erase(it);
+
+    uint32_t remaining = 0;
+    for (const auto &item : system->active_touch_contacts_) {
+      if (item.second.window == window) {
+        remaining++;
+      }
+    }
+    data.contact_count = remaining;
+
+    system->pushEvent(std::make_unique<GHOST_EventTouch>(
+        getMessageTime(system), GHOST_kEventTouchCancel, window, data));
+  }
+}
+
 void GHOST_SystemWin32::processPointerEvent(
     uint type, GHOST_WindowWin32 *window, WPARAM wParam, LPARAM lParam, bool &eventHandled)
 {
   GHOST_SystemWin32 *system = (GHOST_SystemWin32 *)getSystem();
   const uint32_t pointer_id = GET_POINTERID_WPARAM(wParam);
 
+  auto active_count_for_window = [&](GHOST_WindowWin32 *target_window) {
+    uint32_t count = 0;
+    for (const auto &item : system->active_touch_contacts_) {
+      if (item.second.window == target_window) {
+        count++;
+      }
+    }
+    return count;
+  };
+
   /* Capture loss is the native cancellation path. It may arrive after Windows can no longer
    * return pointer metadata, so use the last contact state we cached. */
   if (type == WM_POINTERCAPTURECHANGED) {
     auto active = system->active_touch_contacts_.find(pointer_id);
     if (active != system->active_touch_contacts_.end()) {
-      GHOST_TEventTouchData data = active->second;
+      GHOST_WindowWin32 *event_window = active->second.window;
+      GHOST_TEventTouchData data = active->second.data;
       system->active_touch_contacts_.erase(active);
-      data.contact_count = uint32_t(system->active_touch_contacts_.size());
+      data.contact_count = active_count_for_window(event_window);
       system->pushEvent(std::make_unique<GHOST_EventTouch>(
-          getMessageTime(system), GHOST_kEventTouchCancel, window, data));
+          getMessageTime(system), GHOST_kEventTouchCancel, event_window, data));
       eventHandled = true;
     }
     return;
@@ -1148,12 +1187,12 @@ void GHOST_SystemWin32::processPointerEvent(
         system->active_touch_contacts_.erase(info.pointerId);
       }
       else {
-        system->active_touch_contacts_[info.pointerId] = data;
+        system->active_touch_contacts_[info.pointerId] = {window, data};
       }
-      data.contact_count = uint32_t(system->active_touch_contacts_.size());
+      data.contact_count = active_count_for_window(window);
 
       if (event_type != GHOST_kEventTouchUp && event_type != GHOST_kEventTouchCancel) {
-        system->active_touch_contacts_[info.pointerId].contact_count = data.contact_count;
+        system->active_touch_contacts_[info.pointerId].data.contact_count = data.contact_count;
       }
 
       system->pushEvent(
@@ -1167,7 +1206,13 @@ void GHOST_SystemWin32::processPointerEvent(
         }
         /* Windows returns coalesced history newest-first; dispatch chronologically. */
         for (uint32_t i = uint32_t(touch_info.size()); i-- > 0;) {
-          push_touch(GHOST_kEventTouchMove, touch_info[i]);
+          const GHOST_TEventType event_type = touch_info[i].isCanceled ?
+                                                  GHOST_kEventTouchCancel :
+                                                  GHOST_kEventTouchMove;
+          push_touch(event_type, touch_info[i]);
+          if (event_type == GHOST_kEventTouchCancel) {
+            break;
+          }
         }
         eventHandled = true;
         break;
@@ -1190,7 +1235,7 @@ void GHOST_SystemWin32::processPointerEvent(
           if (active == system->active_touch_contacts_.end()) {
             return;
           }
-          const GHOST_TEventTouchData previous = active->second;
+          const GHOST_TEventTouchData previous = active->second.data;
           GHOST_TouchInfoWin32 fallback = {};
           fallback.pointerId = pointer_id;
           fallback.isPrimary = previous.is_primary;
@@ -2288,6 +2333,7 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
            * will not be dispatched to OUR active window if we minimize one of OUR windows. */
           if (LOWORD(wParam) == WA_INACTIVE) {
             window->lostMouseCapture();
+            cancelTouchContacts(window);
           }
           else {
             window->updateHDRInfo();
@@ -2406,6 +2452,7 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
           break;
         }
         case WM_DISPLAYCHANGE: {
+          cancelTouchContacts(window);
           GHOST_Wintab *wt = window->getWintab();
           if (wt) {
             wt->remapCoordinates();
@@ -2463,15 +2510,16 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
         case WM_NCPAINT:
           /* An application sends the WM_NCPAINT message to a window
            * when its frame must be painted. */
-        case WM_NCACTIVATE:
+        case WM_NCACTIVATE: {
           /* The WM_NCACTIVATE message is sent to a window when its non-client area needs to be
            * changed to indicate an active or inactive state. */
-        case WM_DESTROY:
-          /* The WM_DESTROY message is sent when a window is being destroyed. It is sent to the
-           * window procedure of the window being destroyed after the window is removed from the
-           * screen. This message is sent first to the window being destroyed and then to the child
-           * windows (if any) as they are destroyed. During the processing of the message, it can
-           * be assumed that all child windows still exist. */
+          break;
+        }
+        case WM_DESTROY: {
+          /* Ensure no native pointer id outlives the window that owned it. */
+          cancelTouchContacts(window);
+          break;
+        }
         case WM_NCDESTROY: {
           /* The WM_NCDESTROY message informs a window that its non-client area is being
            * destroyed. The DestroyWindow function sends the WM_NCDESTROY message to the window
