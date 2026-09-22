@@ -11,6 +11,7 @@
 
 #include "GHOST_EventDragnDrop.hh"
 #include "GHOST_EventTrackpad.hh"
+#include "GHOST_EventTouch.hh"
 #include "GHOST_SystemWin32.hh"
 
 #ifndef _WIN32_IE
@@ -241,6 +242,17 @@ static uint64_t getMessageTime(GHOST_SystemWin32 *system)
 
   /* Return message time as 64-bit milliseconds with the delta applied. */
   return system->getMilliSeconds() + t_delta;
+}
+
+/** Return true for compatibility mouse messages promoted from a touch contact. */
+static bool isMouseEventFromTouch()
+{
+  constexpr ULONG_PTR MI_WP_SIGNATURE = 0xFF515700;
+  constexpr ULONG_PTR SIGNATURE_MASK = 0xFFFFFF00;
+  constexpr ULONG_PTR TOUCH_FLAG = 0x80;
+  const ULONG_PTR extra_info = static_cast<ULONG_PTR>(GetMessageExtraInfo());
+  return ((extra_info & SIGNATURE_MASK) == MI_WP_SIGNATURE) &&
+         ((extra_info & TOUCH_FLAG) != 0);
 }
 
 uint8_t GHOST_SystemWin32::getNumDisplays() const
@@ -1096,15 +1108,112 @@ void GHOST_SystemWin32::processWintabEvent(GHOST_WindowWin32 *window)
 void GHOST_SystemWin32::processPointerEvent(
     uint type, GHOST_WindowWin32 *window, WPARAM wParam, LPARAM lParam, bool &eventHandled)
 {
-  /* Pointer events might fire when changing windows for a device which is set to use Wintab,
-   * even when Wintab is left enabled but set to the bottom of Wintab overlap order. */
-  if (!window->usingTabletAPI(GHOST_kTabletWinPointer)) {
+  GHOST_SystemWin32 *system = (GHOST_SystemWin32 *)getSystem();
+  const uint32_t pointer_id = GET_POINTERID_WPARAM(wParam);
+
+  /* Capture loss is the native cancellation path. It may arrive after Windows can no longer
+   * return pointer metadata, so use the last contact state we cached. */
+  if (type == WM_POINTERCAPTURECHANGED) {
+    auto active = system->active_touch_contacts_.find(pointer_id);
+    if (active != system->active_touch_contacts_.end()) {
+      GHOST_TEventTouchData data = active->second;
+      system->active_touch_contacts_.erase(active);
+      data.contact_count = uint32_t(system->active_touch_contacts_.size());
+      system->pushEvent(std::make_unique<GHOST_EventTouch>(
+          getMessageTime(system), GHOST_kEventTouchCancel, window, data));
+      eventHandled = true;
+    }
     return;
   }
 
-  GHOST_SystemWin32 *system = (GHOST_SystemWin32 *)getSystem();
-  std::vector<GHOST_PointerInfoWin32> pointerInfo;
+  POINTER_INPUT_TYPE pointer_type = PT_POINTER;
+  if (!GetPointerType(pointer_id, &pointer_type)) {
+    return;
+  }
 
+  if (pointer_type == PT_TOUCH) {
+    std::vector<GHOST_TouchInfoWin32> touch_info;
+    const bool have_touch_info = window->getTouchInfo(touch_info, wParam, lParam) == GHOST_kSuccess &&
+                                 !touch_info.empty();
+
+    auto push_touch = [&](GHOST_TEventType event_type, const GHOST_TouchInfoWin32 &info) {
+      GHOST_TEventTouchData data = {};
+      data.id = info.pointerId;
+      data.x = info.pixelLocation.x;
+      data.y = info.pixelLocation.y;
+      data.pressure = info.pressure;
+      data.is_primary = info.isPrimary;
+
+      if (event_type == GHOST_kEventTouchUp || event_type == GHOST_kEventTouchCancel) {
+        system->active_touch_contacts_.erase(info.pointerId);
+      }
+      else {
+        system->active_touch_contacts_[info.pointerId] = data;
+      }
+      data.contact_count = uint32_t(system->active_touch_contacts_.size());
+
+      if (event_type != GHOST_kEventTouchUp && event_type != GHOST_kEventTouchCancel) {
+        system->active_touch_contacts_[info.pointerId].contact_count = data.contact_count;
+      }
+
+      system->pushEvent(
+          std::make_unique<GHOST_EventTouch>(info.time, event_type, window, data));
+    };
+
+    switch (type) {
+      case WM_POINTERUPDATE: {
+        if (!have_touch_info) {
+          return;
+        }
+        /* Windows returns coalesced history newest-first; dispatch chronologically. */
+        for (uint32_t i = uint32_t(touch_info.size()); i-- > 0;) {
+          push_touch(GHOST_kEventTouchMove, touch_info[i]);
+        }
+        eventHandled = true;
+        break;
+      }
+      case WM_POINTERDOWN: {
+        if (!have_touch_info) {
+          return;
+        }
+        push_touch(GHOST_kEventTouchDown, touch_info[0]);
+        eventHandled = true;
+        break;
+      }
+      case WM_POINTERUP: {
+        if (have_touch_info) {
+          push_touch(GHOST_kEventTouchUp, touch_info[0]);
+        }
+        else {
+          auto active = system->active_touch_contacts_.find(pointer_id);
+          if (active == system->active_touch_contacts_.end()) {
+            return;
+          }
+          const GHOST_TEventTouchData previous = active->second;
+          GHOST_TouchInfoWin32 fallback = {};
+          fallback.pointerId = pointer_id;
+          fallback.isPrimary = previous.is_primary;
+          fallback.pixelLocation.x = previous.x;
+          fallback.pixelLocation.y = previous.y;
+          fallback.pressure = previous.pressure;
+          fallback.time = getMessageTime(system);
+          push_touch(GHOST_kEventTouchUp, fallback);
+        }
+        eventHandled = true;
+        break;
+      }
+      default:
+        break;
+    }
+    return;
+  }
+
+  /* The existing pointer path below is specifically the Windows Ink pen backend. */
+  if (pointer_type != PT_PEN || !window->usingTabletAPI(GHOST_kTabletWinPointer)) {
+    return;
+  }
+
+  std::vector<GHOST_PointerInfoWin32> pointerInfo;
   if (window->getPointerInfo(pointerInfo, wParam, lParam) != GHOST_kSuccess) {
     return;
   }
@@ -1121,13 +1230,10 @@ void GHOST_SystemWin32::processPointerEvent(
                                                               pointerInfo[i].pixelLocation.y,
                                                               pointerInfo[i].tabletData));
       }
-
-      /* Leave event unhandled so that system cursor is moved. */
-
+      /* Leave pen update unhandled so that the system cursor is moved. */
       break;
     }
     case WM_POINTERDOWN: {
-      /* Move cursor to point of contact because GHOST_EventButton does not include position. */
       system->pushEvent(std::make_unique<GHOST_EventCursor>(pointerInfo[0].time,
                                                             GHOST_kEventCursorMove,
                                                             window,
@@ -1140,10 +1246,7 @@ void GHOST_SystemWin32::processPointerEvent(
                                                             pointerInfo[0].buttonMask,
                                                             pointerInfo[0].tabletData));
       window->updateMouseCapture(MousePressed);
-
-      /* Mark event handled so that mouse button events are not generated. */
       eventHandled = true;
-
       break;
     }
     case WM_POINTERUP: {
@@ -1153,15 +1256,11 @@ void GHOST_SystemWin32::processPointerEvent(
                                                             pointerInfo[0].buttonMask,
                                                             pointerInfo[0].tabletData));
       window->updateMouseCapture(MouseReleased);
-
-      /* Mark event handled so that mouse button events are not generated. */
       eventHandled = true;
-
       break;
     }
-    default: {
+    default:
       break;
-    }
   }
 }
 
@@ -1926,7 +2025,8 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
          * ========================= */
         case WM_POINTERUPDATE:
         case WM_POINTERDOWN:
-        case WM_POINTERUP: {
+        case WM_POINTERUP:
+        case WM_POINTERCAPTURECHANGED: {
           processPointerEvent(msg, window, wParam, lParam, eventHandled);
           break;
         }
@@ -1948,18 +2048,22 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
          * Mouse events, processed
          * ======================= */
         case WM_LBUTTONDOWN: {
+          if (isMouseEventFromTouch()) { eventHandled = true; break; }
           event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskLeft);
           break;
         }
         case WM_MBUTTONDOWN: {
+          if (isMouseEventFromTouch()) { eventHandled = true; break; }
           event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskMiddle);
           break;
         }
         case WM_RBUTTONDOWN: {
+          if (isMouseEventFromTouch()) { eventHandled = true; break; }
           event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskRight);
           break;
         }
         case WM_XBUTTONDOWN: {
+          if (isMouseEventFromTouch()) { eventHandled = true; break; }
           if (short(HIWORD(wParam)) == XBUTTON1) {
             event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskButton4);
           }
@@ -1969,18 +2073,22 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
           break;
         }
         case WM_LBUTTONUP: {
+          if (isMouseEventFromTouch()) { eventHandled = true; break; }
           event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskLeft);
           break;
         }
         case WM_MBUTTONUP: {
+          if (isMouseEventFromTouch()) { eventHandled = true; break; }
           event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskMiddle);
           break;
         }
         case WM_RBUTTONUP: {
+          if (isMouseEventFromTouch()) { eventHandled = true; break; }
           event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskRight);
           break;
         }
         case WM_XBUTTONUP: {
+          if (isMouseEventFromTouch()) { eventHandled = true; break; }
           if (short(HIWORD(wParam)) == XBUTTON1) {
             event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskButton4);
           }
@@ -1990,6 +2098,7 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
           break;
         }
         case WM_MOUSEMOVE: {
+          if (isMouseEventFromTouch()) { eventHandled = true; break; }
           if (!window->mouse_present_) {
             WINTAB_PRINTF("HWND %p mouse enter\n", window->getHWND());
             TRACKMOUSEEVENT tme = {sizeof(tme)};
