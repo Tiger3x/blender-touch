@@ -1182,7 +1182,8 @@ void GHOST_SystemWin32::processPointerEvent(
       }
       case WM_POINTERUP: {
         if (have_touch_info) {
-          push_touch(GHOST_kEventTouchUp, touch_info[0]);
+          push_touch(touch_info[0].isCanceled ? GHOST_kEventTouchCancel : GHOST_kEventTouchUp,
+                     touch_info[0]);
         }
         else {
           auto active = system->active_touch_contacts_.find(pointer_id);
@@ -2048,22 +2049,34 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
          * Mouse events, processed
          * ======================= */
         case WM_LBUTTONDOWN: {
-          if (isMouseEventFromTouch()) { eventHandled = true; break; }
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskLeft);
           break;
         }
         case WM_MBUTTONDOWN: {
-          if (isMouseEventFromTouch()) { eventHandled = true; break; }
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskMiddle);
           break;
         }
         case WM_RBUTTONDOWN: {
-          if (isMouseEventFromTouch()) { eventHandled = true; break; }
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskRight);
           break;
         }
         case WM_XBUTTONDOWN: {
-          if (isMouseEventFromTouch()) { eventHandled = true; break; }
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           if (short(HIWORD(wParam)) == XBUTTON1) {
             event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskButton4);
           }
@@ -2073,22 +2086,34 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
           break;
         }
         case WM_LBUTTONUP: {
-          if (isMouseEventFromTouch()) { eventHandled = true; break; }
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskLeft);
           break;
         }
         case WM_MBUTTONUP: {
-          if (isMouseEventFromTouch()) { eventHandled = true; break; }
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskMiddle);
           break;
         }
         case WM_RBUTTONUP: {
-          if (isMouseEventFromTouch()) { eventHandled = true; break; }
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskRight);
           break;
         }
         case WM_XBUTTONUP: {
-          if (isMouseEventFromTouch()) { eventHandled = true; break; }
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           if (short(HIWORD(wParam)) == XBUTTON1) {
             event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskButton4);
           }
@@ -2098,7 +2123,10 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
           break;
         }
         case WM_MOUSEMOVE: {
-          if (isMouseEventFromTouch()) { eventHandled = true; break; }
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           if (!window->mouse_present_) {
             WINTAB_PRINTF("HWND %p mouse enter\n", window->getHWND());
             TRACKMOUSEEVENT tme = {sizeof(tme)};
