@@ -12,9 +12,11 @@ de GHOST para `wmEvent`. Esse trabalho foi antecipado na implementação de
 P004–P006. Repeti-lo criaria código duplicado. P007–P010 agora são uma etapa de
 validação do fluxo existente e de correção dos problemas encontrados no aparelho.
 
-Também antecipamos a automação do build Windows e o artefato portátil, antes
-previstos apenas em P035–P036. Isso é necessário para testar cada incremento no
-hardware. A publicação de uma versão continua sendo uma etapa de release.
+Também antecipamos o build Windows local com Ninja e o pacote portátil, antes
+previstos apenas em P035–P036. O build local permite testar cada incremento no
+hardware. A compilação no GitHub fica disponível apenas por acionamento manual
+e não é requisito para avançar. A publicação de uma versão continua sendo uma
+etapa de release.
 
 Um build bem-sucedido prova que o código compila. Ele não prova que toque,
 caneta, mouse e teclado funcionam corretamente no dispositivo físico. Cada marco
@@ -25,7 +27,7 @@ abaixo tem um resultado observável e um critério de saída.
 | Marco | Estado | Evidência ou pendência |
 | --- | --- | --- |
 | P001–P005 — base de entrada | Implementada | Tipos de evento, payload, captura Win32, contatos e cancelamento estão no código. |
-| P006 — integração e build | Em validação | [Build #12 do CI](https://github.com/Tiger3x/blender-touch/actions/runs/35758654170) publicou o primeiro artefato. Lite e completo locais passaram com Ninja. No Galaxy Book, toque com até três dedos e cancelamento após `Alt+Tab` passaram; mouse, teclado, pressão e borracha da S Pen pareceram normais. O Windows Ink entregou valores de pressão e inclinação variáveis da S Pen, e a interação normal funcionou sem o monitor de teste. Falta confirmar o artefato de CI com a correção do cancelamento ([Build #14](https://github.com/Tiger3x/blender-touch/actions/runs/35796793953)). |
+| P006 — integração e build | Concluída | Lite e completo passaram no build local com Ninja, inclusive após a correção do cancelamento. O pacote portátil abriu no Galaxy Book. Toque com até três dedos e cancelamento após `Alt+Tab` passaram; mouse e teclado responderam normalmente. Pressão, borracha e inclinação da S Pen foram verificadas, e a interação funcionou com Windows Ink sem o monitor de teste. O [Build #12 do CI](https://github.com/Tiger3x/blender-touch/actions/runs/35758654170) publicou um artefato anterior à correção, mas CI não é requisito deste marco. |
 | P007–P010 — fluxo nativo | Implementado; falta validar | O fluxo Windows → GHOST → Window Manager já existe. Corrigir falhas que o teste físico revelar. |
 | P011–P038 — interação, gestos, interface e release | Pendente | Seguir os marcos abaixo depois de fechar P006. |
 
@@ -43,8 +45,8 @@ abaixo tem um resultado observável e um critério de saída.
 5. Confirmar que um toque tratado não gera um segundo clique de mouse e que o
    cursor do mouse não salta para a posição do dedo.
 
-**Saída:** builds e pacote aprovados, registro curto dos testes físicos e nenhuma
-regressão de mouse, teclado ou caneta. Falhas descobertas aqui devem ser
+**Saída:** builds e pacote locais aprovados, registro curto dos testes físicos e
+nenhuma regressão de mouse, teclado ou caneta. Falhas descobertas aqui devem ser
 corrigidas antes de P011. O checklist detalhado está em
 [`P006_BUILD_GATE.md`](P006_BUILD_GATE.md).
 

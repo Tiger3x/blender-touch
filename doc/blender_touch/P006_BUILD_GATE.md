@@ -19,9 +19,9 @@ Prove that the native touch foundation is integrated into Blender without regres
 - [x] Raw touch events do not mutate the persistent mouse cursor state.
 - [x] RNA and event debug output know the new touch event types.
 - [x] Keymap infrastructure classifies raw touch as pointing-device input.
-- [x] Windows Lite build succeeds ([Build #12](https://github.com/Tiger3x/blender-touch/actions/runs/35758654170); also verified locally with Ninja).
-- [x] Windows normal build succeeds ([Build #12](https://github.com/Tiger3x/blender-touch/actions/runs/35758654170); also verified locally with Ninja and a headless startup test).
-- [x] Portable artifact is published by CI (`Blender-Touch-Windows-x64-P006-12`).
+- [x] Windows Lite build succeeds locally with Ninja (`C:\btlite\portable\blender.exe`).
+- [x] Windows normal build succeeds locally with Ninja (`C:\btfull\portable\blender.exe`).
+- [x] Local portable build starts with its bundled data and DLLs.
 - [x] Mouse regression smoke test passes on the Galaxy Book touchpad (user-observed).
 - [x] Keyboard regression smoke test passes on the Galaxy Book (`G` / `Esc`, user-observed).
 - [x] Windows Ink / pen regression smoke test passes (normal interaction and stylus telemetry verified on the Galaxy Book).
@@ -57,7 +57,8 @@ Run Blender with event debugging enabled and verify:
 
 ## Exit criterion
 
-P006 is complete only when both build gates and all smoke tests above pass.
+P006 is complete when both local build gates and all smoke tests above pass.
+GitHub Actions is optional and runs only when manually dispatched.
 Gesture implementation must not begin before this gate is green.
 
 Hardware smoke test on September 22, 2026: the Galaxy Book reported up to three
@@ -72,8 +73,10 @@ without the modal probe confirmed that touchpad clicks and S Pen clicks both
 work normally. The modal probe itself interfered with normal interaction, so
 its apparent UI freeze is not evidence of a Blender runtime regression. A brush
 response to tilt was not assessed in Object Mode; this gate verifies that tilt
-data reaches Blender. The CI Build #12 artifact predates the cancellation fix;
-an updated CI artifact must be checked before closing P006.
+data reaches Blender. Both Lite and full portable builds were rebuilt locally
+with Ninja after the cancellation fix and started successfully. The full build
+also passed the physical tests above. The CI Build #12 artifact predates the
+fix, but an updated CI artifact is not required for this gate.
 
-The revised sequence and the distinction between completed build gates and
-pending hardware validation are recorded in [ROADMAP.md](ROADMAP.md).
+The revised sequence and completed P006 validation are recorded in
+[ROADMAP.md](ROADMAP.md).

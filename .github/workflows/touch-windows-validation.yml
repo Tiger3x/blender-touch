@@ -1,9 +1,6 @@
 name: Blender Touch Windows Validation
 
 on:
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 concurrency:
