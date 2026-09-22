@@ -2,8 +2,8 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later */
 
-/** \\file
- * \\ingroup GHOST
+/** \file
+ * \ingroup GHOST
  * Declaration of GHOST_EventTouch class.
  */
 
