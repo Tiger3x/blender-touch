@@ -2516,8 +2516,18 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
           break;
         }
         case WM_DESTROY: {
-          /* Ensure no native pointer id outlives the window that owned it. */
-          cancelTouchContacts(window);
+          /* The window is about to become invalid. Drop cached contacts without queuing events
+           * that would retain a pointer to the destroyed GHOST window. */
+          for (auto it = system->active_touch_contacts_.begin();
+               it != system->active_touch_contacts_.end();)
+          {
+            if (it->second.window == window) {
+              it = system->active_touch_contacts_.erase(it);
+            }
+            else {
+              ++it;
+            }
+          }
           break;
         }
         case WM_NCDESTROY: {
