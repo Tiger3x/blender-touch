@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/touch-input-layer
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
