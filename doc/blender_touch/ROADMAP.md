@@ -31,7 +31,7 @@ abaixo tem um resultado observável e um critério de saída.
 | P007 — posição e ativação do toque nativo | Concluída | O [teste no Galaxy Book](P007_POINTER_VALIDATION.md) confirmou sequência e coordenadas de um arrasto diagonal, sem contato preso ou clique de mouse duplicado. Um toque também ativou a janela a partir do Codex após a correção de `WM_POINTERACTIVATE`. A ação visual de um dedo continua prevista para P011. |
 | P008 — separar toque, caneta e mouse | Concluída | Os [registros do Galaxy Book](P008_DEVICE_SEPARATION.md) confirmam eventos de toque sem cliques de mouse duplicados, S Pen reportada como tablet e mouse/touchpad preservados. |
 | P009 — contatos simultâneos | Concluída | Três sequências com dois dedos tiveram IDs, movimentos e contagens coerentes no [registro do Galaxy Book](P009_MULTITOUCH_VALIDATION.md). |
-| P010 — cancelamento e troca de janela | Implementado; falta validar | Aprofundar perda de captura e troca de janela sobre o fluxo Windows → GHOST → Window Manager já existente. |
+| P010 — cancelamento e troca de janela | Concluída | O [teste no Galaxy Book](P010_CANCELLATION_VALIDATION.md) confirmou `TOUCH_CANCEL` após `Alt+Tab`, ausência de eventos atrasados e novos toques e cliques do touchpad funcionais. |
 | P011–P038 — interação, gestos, interface e release | Pendente | Seguir os marcos abaixo depois de fechar P006. |
 
 ## P006 — fechar a base antes de criar gestos
@@ -62,9 +62,9 @@ corrigidas antes de P011. O checklist detalhado está em
   [`P008_DEVICE_SEPARATION.md`](P008_DEVICE_SEPARATION.md).
 - **P009:** validar IDs e contagens de contatos simultâneos. Resultado em
   [`P009_MULTITOUCH_VALIDATION.md`](P009_MULTITOUCH_VALIDATION.md).
-- **P010:** aprofundar a validação de cancelamento, perda de captura e troca de
-  janela. Corrigir contatos presos ou eventos atrasados conforme os resultados.
-  Não recriar essa camada.
+- **P010:** validar cancelamento e retomada após troca de janela; revisar os
+  caminhos de perda de captura e desativação. Resultado em
+  [`P010_CANCELLATION_VALIDATION.md`](P010_CANCELLATION_VALIDATION.md).
 - **P011:** implementar o comportamento de um dedo. Toque curto deve acionar um
   único controle da interface; arrasto deve iniciar, mover e terminar sem deixar
   uma operação presa. Definir explicitamente quais áreas aceitam toque e como
