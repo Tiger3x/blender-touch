@@ -33,6 +33,21 @@ Os builds completo e Lite para Windows terminaram com sucesso usando Ninja. Os
 executáveis portáteis atualizados estão em `C:\btfull\portable\blender.exe` e
 `C:\btlite\portable\blender.exe`.
 
-**Saída da P011:** implementação e builds concluídos. A validação física do
-toque curto e do arrasto, incluindo alternância para mouse e S Pen, pertence à
-P012 e ainda está pendente.
+## Validação física (P012)
+
+No Galaxy Book, o usuário confirmou que o toque seleciona, que o teclado
+continua respondendo e que a seleção por caixa acompanha o dedo durante o
+arrasto e termina ao soltar. `G` também foi reconhecido no início do teste.
+Touchpad e S Pen já haviam respondido normalmente nos testes de regressão, sem
+clique duplicado relatado.
+
+O usuário tentou mover o cubo com `G` e arrastando o dedo, mas não conseguiu.
+Isso não valida o arrasto definido nesta etapa: a P011 emula o botão esquerdo
+do mouse, então um arrasto comum na viewport deve produzir a operação padrão do
+Blender (por exemplo, seleção por caixa quando começa em espaço vazio). A P011
+não implementa um gesto independente de “pegar e mover” diretamente o objeto.
+O arrasto padrão passou: a seleção acompanhou o dedo e terminou ao soltá-lo, sem
+deixar a interface presa.
+
+**Saída da P011:** implementação e builds concluídos. A validação física está
+concluída; P012 fechada.

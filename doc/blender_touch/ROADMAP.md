@@ -32,8 +32,8 @@ abaixo tem um resultado observável e um critério de saída.
 | P008 — separar toque, caneta e mouse | Concluída | Os [registros do Galaxy Book](P008_DEVICE_SEPARATION.md) confirmam eventos de toque sem cliques de mouse duplicados, S Pen reportada como tablet e mouse/touchpad preservados. |
 | P009 — contatos simultâneos | Concluída | Três sequências com dois dedos tiveram IDs, movimentos e contagens coerentes no [registro do Galaxy Book](P009_MULTITOUCH_VALIDATION.md). |
 | P010 — cancelamento e troca de janela | Concluída | O [teste no Galaxy Book](P010_CANCELLATION_VALIDATION.md) confirmou `TOUCH_CANCEL` após `Alt+Tab`, ausência de eventos atrasados e novos toques e cliques do touchpad funcionais. |
-| P011 — interação com um dedo | Implementada; falta validar | O [comportamento definido](P011_ONE_FINGER_INTERACTION.md) está no Window Manager. Builds completo e Lite passaram com Ninja; falta o teste físico da P012. |
-| P012 — validar interação com um dedo | Pendente | Testar toque curto e arrasto no Galaxy Book e repetir mouse e S Pen. |
+| P011 — interação com um dedo | Concluída | O [comportamento definido](P011_ONE_FINGER_INTERACTION.md) está no Window Manager. Builds completo e Lite passaram com Ninja. No Galaxy Book, toque/seleção, teclado e arrasto padrão foram validados; a seleção acompanhou o dedo e terminou ao soltá-lo. Touchpad e S Pen passaram na regressão. |
+| P012 — validar interação com um dedo | Concluída | Testes físicos no Galaxy Book confirmaram toque e seleção, arrasto padrão sem operação presa e regressão de teclado, touchpad e S Pen. |
 | P013–P038 — gestos, interface e release | Pendente | Seguir os marcos abaixo depois de concluir P012. |
 
 ## P006 — fechar a base antes de criar gestos
