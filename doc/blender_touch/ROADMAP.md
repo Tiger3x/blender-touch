@@ -85,7 +85,12 @@ Implementar primeiro um reconhecedor por janela, com estado por contato e regras
 para escolher um único gesto por sequência. Uma sequência cancelada deve limpar
 seu estado e nunca disparar uma ação atrasada. Em seguida, entregar toque duplo,
 pressão longa, zoom com pinça, pan com dois dedos e órbita. Ajustar os limiares
-com teste no aparelho, sem depender de valores supostos no plano.
+com teste no aparelho, sem depender de valores supostos no plano. Incluir a
+falha observada na P012 como caso obrigatório: depois de iniciar `G` pelo
+teclado, encostar um dedo hoje gera `LEFTMOUSE/KM_PRESS`, que confirma a
+transformação modal do Blender imediatamente. Definir e implementar uma forma
+de continuar ou iniciar a transformação pelo toque sem confirmar no primeiro
+contato, preservando cliques normais na interface.
 
 Testar transições difíceis: dedo adicional durante arrasto, retirada de um dedo,
 saída da janela, troca de foco e contato cancelado. O modo de gestos precisa poder

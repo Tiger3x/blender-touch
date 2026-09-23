@@ -49,5 +49,13 @@ não implementa um gesto independente de “pegar e mover” diretamente o objet
 O arrasto padrão passou: a seleção acompanhou o dedo e terminou ao soltá-lo, sem
 deixar a interface presa.
 
+Durante o mesmo teste, o usuário iniciou `G` e depois encostou o dedo para
+mover o objeto. O movimento parou no contato. Isso é explicado pelo contrato
+atual: o `TOUCHDOWN` gera `LEFTMOUSE/KM_PRESS`, e o mapa padrão do Blender usa
+esse pressionamento para confirmar a transformação modal. Portanto, a P011
+passou na emulação de clique/arrasto padrão, mas ainda não permite continuar um
+`G` com o dedo depois de iniciar a operação pelo teclado. Esse caso deve ser
+resolvido na próxima etapa de interação por toque.
+
 **Saída da P011:** implementação e builds concluídos. A validação física está
 concluída; P012 fechada.
