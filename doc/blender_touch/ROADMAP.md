@@ -28,7 +28,8 @@ abaixo tem um resultado observável e um critério de saída.
 | --- | --- | --- |
 | P001–P005 — base de entrada | Implementada | Tipos de evento, payload, captura Win32, contatos e cancelamento estão no código. |
 | P006 — integração e build | Concluída | Lite e completo passaram no build local com Ninja, inclusive após a correção do cancelamento. O pacote portátil abriu no Galaxy Book. Toque com até três dedos e cancelamento após `Alt+Tab` passaram; mouse e teclado responderam normalmente. Pressão, borracha e inclinação da S Pen foram verificadas, e a interação funcionou com Windows Ink sem o monitor de teste. O [Build #12 do CI](https://github.com/Tiger3x/blender-touch/actions/runs/35758654170) publicou um artefato anterior à correção, mas CI não é requisito deste marco. |
-| P007–P010 — fluxo nativo | Implementado; falta validar | O fluxo Windows → GHOST → Window Manager já existe. Corrigir falhas que o teste físico revelar. |
+| P007 — posição e ativação do toque nativo | Concluída | O [teste no Galaxy Book](P007_POINTER_VALIDATION.md) confirmou sequência e coordenadas de um arrasto diagonal, sem contato preso ou clique de mouse duplicado. Um toque também ativou a janela a partir do Codex após a correção de `WM_POINTERACTIVATE`. A ação visual de um dedo continua prevista para P011. |
+| P008–P010 — fluxo nativo | Implementado; falta validar | Aprofundar separação de dispositivos, contatos simultâneos e troca de janela sobre o fluxo Windows → GHOST → Window Manager já existente. |
 | P011–P038 — interação, gestos, interface e release | Pendente | Seguir os marcos abaixo depois de fechar P006. |
 
 ## P006 — fechar a base antes de criar gestos
@@ -52,9 +53,13 @@ corrigidas antes de P011. O checklist detalhado está em
 
 ## P007–P012 — transformar eventos brutos em interação útil
 
-- **P007–P010:** validar no aparelho o fluxo Win32 → GHOST → Window Manager já
-  implementado. Corrigir coordenadas, IDs, ordem, cancelamento, janela ativa e
-  promoção indevida a mouse conforme os resultados. Não recriar essa camada.
+- **P007:** validar no aparelho as coordenadas, a sequência e a ativação da
+  janela por um dedo no fluxo Win32 → GHOST → Window Manager. Resultado em
+  [`P007_POINTER_VALIDATION.md`](P007_POINTER_VALIDATION.md).
+- **P008–P010:** aprofundar a validação da separação de dispositivos, dos
+  contatos simultâneos e da troca de janela. Corrigir IDs, ordem, cancelamento,
+  janela ativa e promoção indevida a mouse conforme os resultados. Não recriar
+  essa camada.
 - **P011:** implementar o comportamento de um dedo. Toque curto deve acionar um
   único controle da interface; arrasto deve iniciar, mover e terminar sem deixar
   uma operação presa. Definir explicitamente quais áreas aceitam toque e como

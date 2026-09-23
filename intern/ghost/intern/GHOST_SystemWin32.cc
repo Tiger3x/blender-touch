@@ -2080,6 +2080,13 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
         /* =========================
          * Pointer events, processed
          * ========================= */
+        case WM_POINTERACTIVATE: {
+          /* Activate the window when touch is the first input so subsequent mouse and keyboard
+           * input reaches Blender even though the touch stream is handled without mouse promotion. */
+          lResult = PA_ACTIVATE;
+          eventHandled = true;
+          break;
+        }
         case WM_POINTERUPDATE:
         case WM_POINTERDOWN:
         case WM_POINTERUP:
