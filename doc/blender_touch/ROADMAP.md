@@ -30,7 +30,8 @@ abaixo tem um resultado observável e um critério de saída.
 | P006 — integração e build | Concluída | Lite e completo passaram no build local com Ninja, inclusive após a correção do cancelamento. O pacote portátil abriu no Galaxy Book. Toque com até três dedos e cancelamento após `Alt+Tab` passaram; mouse e teclado responderam normalmente. Pressão, borracha e inclinação da S Pen foram verificadas, e a interação funcionou com Windows Ink sem o monitor de teste. O [Build #12 do CI](https://github.com/Tiger3x/blender-touch/actions/runs/35758654170) publicou um artefato anterior à correção, mas CI não é requisito deste marco. |
 | P007 — posição e ativação do toque nativo | Concluída | O [teste no Galaxy Book](P007_POINTER_VALIDATION.md) confirmou sequência e coordenadas de um arrasto diagonal, sem contato preso ou clique de mouse duplicado. Um toque também ativou a janela a partir do Codex após a correção de `WM_POINTERACTIVATE`. A ação visual de um dedo continua prevista para P011. |
 | P008 — separar toque, caneta e mouse | Concluída | Os [registros do Galaxy Book](P008_DEVICE_SEPARATION.md) confirmam eventos de toque sem cliques de mouse duplicados, S Pen reportada como tablet e mouse/touchpad preservados. |
-| P009–P010 — fluxo nativo | Implementado; falta validar | Aprofundar contatos simultâneos, cancelamento e troca de janela sobre o fluxo Windows → GHOST → Window Manager já existente. |
+| P009 — contatos simultâneos | Concluída | Três sequências com dois dedos tiveram IDs, movimentos e contagens coerentes no [registro do Galaxy Book](P009_MULTITOUCH_VALIDATION.md). |
+| P010 — cancelamento e troca de janela | Implementado; falta validar | Aprofundar perda de captura e troca de janela sobre o fluxo Windows → GHOST → Window Manager já existente. |
 | P011–P038 — interação, gestos, interface e release | Pendente | Seguir os marcos abaixo depois de fechar P006. |
 
 ## P006 — fechar a base antes de criar gestos
@@ -59,9 +60,11 @@ corrigidas antes de P011. O checklist detalhado está em
   [`P007_POINTER_VALIDATION.md`](P007_POINTER_VALIDATION.md).
 - **P008:** validar que toque, S Pen e mouse preservam suas rotas. Resultado em
   [`P008_DEVICE_SEPARATION.md`](P008_DEVICE_SEPARATION.md).
-- **P009–P010:** aprofundar a validação dos contatos simultâneos, cancelamento e
-  troca de janela. Corrigir IDs, ordem, contatos presos ou promoção indevida a
-  mouse conforme os resultados. Não recriar essa camada.
+- **P009:** validar IDs e contagens de contatos simultâneos. Resultado em
+  [`P009_MULTITOUCH_VALIDATION.md`](P009_MULTITOUCH_VALIDATION.md).
+- **P010:** aprofundar a validação de cancelamento, perda de captura e troca de
+  janela. Corrigir contatos presos ou eventos atrasados conforme os resultados.
+  Não recriar essa camada.
 - **P011:** implementar o comportamento de um dedo. Toque curto deve acionar um
   único controle da interface; arrasto deve iniciar, mover e terminar sem deixar
   uma operação presa. Definir explicitamente quais áreas aceitam toque e como
