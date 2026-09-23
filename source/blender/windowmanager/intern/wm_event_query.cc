@@ -170,6 +170,16 @@ void WM_event_print(const wmEvent *event)
     }
 #endif /* WITH_INPUT_NDOF */
 
+    if (ISTOUCH(event->type) && event->custom == EVT_DATA_TOUCH && event->customdata) {
+      const wmTouchData *touch = static_cast<const wmTouchData *>(event->customdata);
+      printf(
+          ", touch: id:%u, pressure:%.4f, contacts:%u, primary:%d",
+          touch->id,
+          touch->pressure,
+          touch->contact_count,
+          int(touch->is_primary));
+    }
+
     if (event->tablet.active != EVT_TABLET_NONE) {
       const wmTabletData *wmtab = &event->tablet;
       printf(", tablet: active: %d, pressure %.4f, tilt: (%.4f %.4f)",

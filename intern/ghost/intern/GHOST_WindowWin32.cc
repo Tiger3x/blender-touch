@@ -852,6 +852,55 @@ GHOST_TSuccess GHOST_WindowWin32::hasCursorShape(GHOST_TStandardCursor cursor_sh
   return (getStandardCursor(cursor_shape)) ? GHOST_kSuccess : GHOST_kFailure;
 }
 
+GHOST_TSuccess GHOST_WindowWin32::getTouchInfo(
+    std::vector<GHOST_TouchInfoWin32> &outTouchInfo, WPARAM wParam, LPARAM /*lParam*/)
+{
+  const uint32_t pointerId = GET_POINTERID_WPARAM(wParam);
+  const bool isPrimary = IS_POINTER_PRIMARY_WPARAM(wParam) != 0;
+  GHOST_SystemWin32 *system = (GHOST_SystemWin32 *)GHOST_System::getSystem();
+  uint32_t outCount = 0;
+
+  if (!GetPointerTouchInfoHistory(pointerId, &outCount, nullptr) || outCount == 0) {
+    POINTER_TOUCH_INFO touchInfo = {};
+    if (!GetPointerTouchInfo(pointerId, &touchInfo)) {
+      return GHOST_kFailure;
+    }
+
+    outTouchInfo.resize(1);
+    GHOST_TouchInfoWin32 &out = outTouchInfo[0];
+    out.pointerId = pointerId;
+    out.isPrimary = isPrimary;
+    out.isCanceled = (touchInfo.pointerInfo.pointerFlags & POINTER_FLAG_CANCELED) != 0;
+    out.pixelLocation = touchInfo.pointerInfo.ptPixelLocation;
+    out.pressure = (touchInfo.touchMask & TOUCH_MASK_PRESSURE) ?
+                       std::clamp(touchInfo.pressure / 1024.0f, 0.0f, 1.0f) :
+                       1.0f;
+    out.time = system->performanceCounterToMillis(touchInfo.pointerInfo.PerformanceCount);
+    return GHOST_kSuccess;
+  }
+
+  std::vector<POINTER_TOUCH_INFO> touchHistory(outCount);
+  if (!GetPointerTouchInfoHistory(pointerId, &outCount, touchHistory.data())) {
+    return GHOST_kFailure;
+  }
+
+  outTouchInfo.resize(outCount);
+  for (uint32_t i = 0; i < outCount; i++) {
+    const POINTER_TOUCH_INFO &touchInfo = touchHistory[i];
+    GHOST_TouchInfoWin32 &out = outTouchInfo[i];
+    out.pointerId = pointerId;
+    out.isPrimary = isPrimary;
+    out.isCanceled = (touchInfo.pointerInfo.pointerFlags & POINTER_FLAG_CANCELED) != 0;
+    out.pixelLocation = touchInfo.pointerInfo.ptPixelLocation;
+    out.pressure = (touchInfo.touchMask & TOUCH_MASK_PRESSURE) ?
+                       std::clamp(touchInfo.pressure / 1024.0f, 0.0f, 1.0f) :
+                       1.0f;
+    out.time = system->performanceCounterToMillis(touchInfo.pointerInfo.PerformanceCount);
+  }
+
+  return GHOST_kSuccess;
+}
+
 GHOST_TSuccess GHOST_WindowWin32::getPointerInfo(
     std::vector<GHOST_PointerInfoWin32> &outPointerInfo, WPARAM wParam, LPARAM /*lParam*/)
 {

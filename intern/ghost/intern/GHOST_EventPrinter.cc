@@ -206,6 +206,23 @@ bool GHOST_EventPrinter::processEvent(const GHOST_IEvent *event)
       CASE_TYPE(GHOST_kEventImeCompositionStart);
       CASE_TYPE(GHOST_kEventImeComposition);
       CASE_TYPE(GHOST_kEventImeCompositionEnd);
+
+    case GHOST_kEventTouchDown:
+    case GHOST_kEventTouchMove:
+    case GHOST_kEventTouchUp:
+    case GHOST_kEventTouchCancel: {
+      const GHOST_TEventTouchData *touch_data = static_cast<const GHOST_TEventTouchData *>(data);
+      std::cout << (event_type == GHOST_kEventTouchDown ? "GHOST_kEventTouchDown" :
+                    event_type == GHOST_kEventTouchMove ? "GHOST_kEventTouchMove" :
+                    event_type == GHOST_kEventTouchUp ? "GHOST_kEventTouchUp" :
+                                                       "GHOST_kEventTouchCancel")
+                << ", id=" << touch_data->id << ", (x,y)=(" << touch_data->x << ","
+                << touch_data->y << "), pressure=" << touch_data->pressure
+                << ", contacts=" << touch_data->contact_count
+                << ", primary=" << touch_data->is_primary;
+      handled = true;
+      break;
+    }
   }
 
 #undef CASE_TYPE

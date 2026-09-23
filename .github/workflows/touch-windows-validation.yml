@@ -1,0 +1,49 @@
+name: Blender Touch Windows Validation
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: blender-touch-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-build:
+    runs-on: windows-2022
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout Blender Touch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Update Blender dependencies
+        shell: cmd
+        run: echo y|call make.bat update
+
+      - name: Build Blender Lite
+        shell: cmd
+        run: call make.bat lite
+
+      - name: Build Blender Full
+        shell: cmd
+        run: call make.bat
+
+      - name: Verify portable build
+        shell: cmd
+        run: |
+          if not exist "..\build_windows_x64_vc17_Release\bin\Release\blender.exe" (
+            echo blender.exe was not produced by the full Windows build.
+            exit /b 1
+          )
+          "..\build_windows_x64_vc17_Release\bin\Release\blender.exe" --version
+
+      - name: Upload Blender Touch portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Blender-Touch-Windows-x64-P006-${{ github.run_number }}
+          path: ${{ runner.workspace }}/build_windows_x64_vc17_Release/bin/Release/
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 14

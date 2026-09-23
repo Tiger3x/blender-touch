@@ -11,6 +11,7 @@
 
 #include "GHOST_EventDragnDrop.hh"
 #include "GHOST_EventTrackpad.hh"
+#include "GHOST_EventTouch.hh"
 #include "GHOST_SystemWin32.hh"
 
 #ifndef _WIN32_IE
@@ -241,6 +242,17 @@ static uint64_t getMessageTime(GHOST_SystemWin32 *system)
 
   /* Return message time as 64-bit milliseconds with the delta applied. */
   return system->getMilliSeconds() + t_delta;
+}
+
+/** Return true for compatibility mouse messages promoted from a touch contact. */
+static bool isMouseEventFromTouch()
+{
+  constexpr ULONG_PTR MI_WP_SIGNATURE = 0xFF515700;
+  constexpr ULONG_PTR SIGNATURE_MASK = 0xFFFFFF00;
+  constexpr ULONG_PTR TOUCH_FLAG = 0x80;
+  const ULONG_PTR extra_info = static_cast<ULONG_PTR>(GetMessageExtraInfo());
+  return ((extra_info & SIGNATURE_MASK) == MI_WP_SIGNATURE) &&
+         ((extra_info & TOUCH_FLAG) != 0);
 }
 
 uint8_t GHOST_SystemWin32::getNumDisplays() const
@@ -1093,18 +1105,172 @@ void GHOST_SystemWin32::processWintabEvent(GHOST_WindowWin32 *window)
   }
 }
 
+void GHOST_SystemWin32::cancelTouchContacts(GHOST_WindowWin32 *window)
+{
+  GHOST_SystemWin32 *system = (GHOST_SystemWin32 *)getSystem();
+
+  for (auto it = system->active_touch_contacts_.begin();
+       it != system->active_touch_contacts_.end();)
+  {
+    if (it->second.window != window) {
+      ++it;
+      continue;
+    }
+
+    GHOST_TEventTouchData data = it->second.data;
+    it = system->active_touch_contacts_.erase(it);
+
+    uint32_t remaining = 0;
+    for (const auto &item : system->active_touch_contacts_) {
+      if (item.second.window == window) {
+        remaining++;
+      }
+    }
+    data.contact_count = remaining;
+
+    system->pushEvent(std::make_unique<GHOST_EventTouch>(
+        getMessageTime(system), GHOST_kEventTouchCancel, window, data));
+  }
+}
+
 void GHOST_SystemWin32::processPointerEvent(
     uint type, GHOST_WindowWin32 *window, WPARAM wParam, LPARAM lParam, bool &eventHandled)
 {
-  /* Pointer events might fire when changing windows for a device which is set to use Wintab,
-   * even when Wintab is left enabled but set to the bottom of Wintab overlap order. */
-  if (!window->usingTabletAPI(GHOST_kTabletWinPointer)) {
+  GHOST_SystemWin32 *system = (GHOST_SystemWin32 *)getSystem();
+  const uint32_t pointer_id = GET_POINTERID_WPARAM(wParam);
+
+  auto active_count_for_window = [&](GHOST_WindowWin32 *target_window) {
+    uint32_t count = 0;
+    for (const auto &item : system->active_touch_contacts_) {
+      if (item.second.window == target_window) {
+        count++;
+      }
+    }
+    return count;
+  };
+
+  /* Capture loss is the native cancellation path. It may arrive after Windows can no longer
+   * return pointer metadata, so use the last contact state we cached. */
+  if (type == WM_POINTERCAPTURECHANGED) {
+    auto active = system->active_touch_contacts_.find(pointer_id);
+    if (active != system->active_touch_contacts_.end()) {
+      GHOST_WindowWin32 *event_window = active->second.window;
+      GHOST_TEventTouchData data = active->second.data;
+      system->active_touch_contacts_.erase(active);
+      data.contact_count = active_count_for_window(event_window);
+      system->pushEvent(std::make_unique<GHOST_EventTouch>(
+          getMessageTime(system), GHOST_kEventTouchCancel, event_window, data));
+      eventHandled = true;
+    }
     return;
   }
 
-  GHOST_SystemWin32 *system = (GHOST_SystemWin32 *)getSystem();
-  std::vector<GHOST_PointerInfoWin32> pointerInfo;
+  POINTER_INPUT_TYPE pointer_type = PT_POINTER;
+  if (!GetPointerType(pointer_id, &pointer_type)) {
+    return;
+  }
 
+  if (pointer_type == PT_TOUCH) {
+    /* A contact canceled on window deactivation or capture loss can still receive native
+     * updates and an up event when the window becomes active again. Do not recreate that
+     * contact without a new down event. */
+    if (type != WM_POINTERDOWN) {
+      const auto active = system->active_touch_contacts_.find(pointer_id);
+      if (active == system->active_touch_contacts_.end() || active->second.window != window) {
+        eventHandled = true;
+        return;
+      }
+    }
+
+    std::vector<GHOST_TouchInfoWin32> touch_info;
+    const bool have_touch_info = window->getTouchInfo(touch_info, wParam, lParam) == GHOST_kSuccess &&
+                                 !touch_info.empty();
+
+    auto push_touch = [&](GHOST_TEventType event_type, const GHOST_TouchInfoWin32 &info) {
+      GHOST_TEventTouchData data = {};
+      data.id = info.pointerId;
+      data.x = info.pixelLocation.x;
+      data.y = info.pixelLocation.y;
+      data.pressure = info.pressure;
+      data.is_primary = info.isPrimary;
+
+      if (event_type == GHOST_kEventTouchUp || event_type == GHOST_kEventTouchCancel) {
+        system->active_touch_contacts_.erase(info.pointerId);
+      }
+      else {
+        system->active_touch_contacts_[info.pointerId] = {window, data};
+      }
+      data.contact_count = active_count_for_window(window);
+
+      if (event_type != GHOST_kEventTouchUp && event_type != GHOST_kEventTouchCancel) {
+        system->active_touch_contacts_[info.pointerId].data.contact_count = data.contact_count;
+      }
+
+      system->pushEvent(
+          std::make_unique<GHOST_EventTouch>(info.time, event_type, window, data));
+    };
+
+    switch (type) {
+      case WM_POINTERUPDATE: {
+        if (!have_touch_info) {
+          return;
+        }
+        /* Windows returns coalesced history newest-first; dispatch chronologically. */
+        for (uint32_t i = uint32_t(touch_info.size()); i-- > 0;) {
+          const GHOST_TEventType event_type = touch_info[i].isCanceled ?
+                                                  GHOST_kEventTouchCancel :
+                                                  GHOST_kEventTouchMove;
+          push_touch(event_type, touch_info[i]);
+          if (event_type == GHOST_kEventTouchCancel) {
+            break;
+          }
+        }
+        eventHandled = true;
+        break;
+      }
+      case WM_POINTERDOWN: {
+        if (!have_touch_info) {
+          return;
+        }
+        push_touch(GHOST_kEventTouchDown, touch_info[0]);
+        eventHandled = true;
+        break;
+      }
+      case WM_POINTERUP: {
+        if (have_touch_info) {
+          push_touch(touch_info[0].isCanceled ? GHOST_kEventTouchCancel : GHOST_kEventTouchUp,
+                     touch_info[0]);
+        }
+        else {
+          auto active = system->active_touch_contacts_.find(pointer_id);
+          if (active == system->active_touch_contacts_.end()) {
+            return;
+          }
+          const GHOST_TEventTouchData previous = active->second.data;
+          GHOST_TouchInfoWin32 fallback = {};
+          fallback.pointerId = pointer_id;
+          fallback.isPrimary = previous.is_primary;
+          fallback.pixelLocation.x = previous.x;
+          fallback.pixelLocation.y = previous.y;
+          fallback.pressure = previous.pressure;
+          fallback.time = getMessageTime(system);
+          push_touch(GHOST_kEventTouchUp, fallback);
+        }
+        eventHandled = true;
+        break;
+      }
+      default:
+        break;
+    }
+    return;
+  }
+
+  /* The existing pointer path below is specifically the Windows Ink pen backend. */
+  if (pointer_type != PT_PEN || !window->usingTabletAPI(GHOST_kTabletWinPointer)) {
+    return;
+  }
+
+  std::vector<GHOST_PointerInfoWin32> pointerInfo;
   if (window->getPointerInfo(pointerInfo, wParam, lParam) != GHOST_kSuccess) {
     return;
   }
@@ -1121,13 +1287,10 @@ void GHOST_SystemWin32::processPointerEvent(
                                                               pointerInfo[i].pixelLocation.y,
                                                               pointerInfo[i].tabletData));
       }
-
-      /* Leave event unhandled so that system cursor is moved. */
-
+      /* Leave pen update unhandled so that the system cursor is moved. */
       break;
     }
     case WM_POINTERDOWN: {
-      /* Move cursor to point of contact because GHOST_EventButton does not include position. */
       system->pushEvent(std::make_unique<GHOST_EventCursor>(pointerInfo[0].time,
                                                             GHOST_kEventCursorMove,
                                                             window,
@@ -1140,10 +1303,7 @@ void GHOST_SystemWin32::processPointerEvent(
                                                             pointerInfo[0].buttonMask,
                                                             pointerInfo[0].tabletData));
       window->updateMouseCapture(MousePressed);
-
-      /* Mark event handled so that mouse button events are not generated. */
       eventHandled = true;
-
       break;
     }
     case WM_POINTERUP: {
@@ -1153,15 +1313,11 @@ void GHOST_SystemWin32::processPointerEvent(
                                                             pointerInfo[0].buttonMask,
                                                             pointerInfo[0].tabletData));
       window->updateMouseCapture(MouseReleased);
-
-      /* Mark event handled so that mouse button events are not generated. */
       eventHandled = true;
-
       break;
     }
-    default: {
+    default:
       break;
-    }
   }
 }
 
@@ -1924,9 +2080,17 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
         /* =========================
          * Pointer events, processed
          * ========================= */
+        case WM_POINTERACTIVATE: {
+          /* Activate the window when touch is the first input so subsequent mouse and keyboard
+           * input reaches Blender even though the touch stream is handled without mouse promotion. */
+          lResult = PA_ACTIVATE;
+          eventHandled = true;
+          break;
+        }
         case WM_POINTERUPDATE:
         case WM_POINTERDOWN:
-        case WM_POINTERUP: {
+        case WM_POINTERUP:
+        case WM_POINTERCAPTURECHANGED: {
           processPointerEvent(msg, window, wParam, lParam, eventHandled);
           break;
         }
@@ -1948,18 +2112,34 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
          * Mouse events, processed
          * ======================= */
         case WM_LBUTTONDOWN: {
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskLeft);
           break;
         }
         case WM_MBUTTONDOWN: {
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskMiddle);
           break;
         }
         case WM_RBUTTONDOWN: {
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskRight);
           break;
         }
         case WM_XBUTTONDOWN: {
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           if (short(HIWORD(wParam)) == XBUTTON1) {
             event = processButtonEvent(GHOST_kEventButtonDown, window, GHOST_kButtonMaskButton4);
           }
@@ -1969,18 +2149,34 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
           break;
         }
         case WM_LBUTTONUP: {
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskLeft);
           break;
         }
         case WM_MBUTTONUP: {
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskMiddle);
           break;
         }
         case WM_RBUTTONUP: {
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskRight);
           break;
         }
         case WM_XBUTTONUP: {
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           if (short(HIWORD(wParam)) == XBUTTON1) {
             event = processButtonEvent(GHOST_kEventButtonUp, window, GHOST_kButtonMaskButton4);
           }
@@ -1990,6 +2186,10 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
           break;
         }
         case WM_MOUSEMOVE: {
+          if (isMouseEventFromTouch()) {
+            eventHandled = true;
+            break;
+          }
           if (!window->mouse_present_) {
             WINTAB_PRINTF("HWND %p mouse enter\n", window->getHWND());
             TRACKMOUSEEVENT tme = {sizeof(tme)};
@@ -2151,6 +2351,7 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
            * will not be dispatched to OUR active window if we minimize one of OUR windows. */
           if (LOWORD(wParam) == WA_INACTIVE) {
             window->lostMouseCapture();
+            cancelTouchContacts(window);
           }
           else {
             window->updateHDRInfo();
@@ -2269,6 +2470,7 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
           break;
         }
         case WM_DISPLAYCHANGE: {
+          cancelTouchContacts(window);
           GHOST_Wintab *wt = window->getWintab();
           if (wt) {
             wt->remapCoordinates();
@@ -2326,15 +2528,26 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
         case WM_NCPAINT:
           /* An application sends the WM_NCPAINT message to a window
            * when its frame must be painted. */
-        case WM_NCACTIVATE:
+        case WM_NCACTIVATE: {
           /* The WM_NCACTIVATE message is sent to a window when its non-client area needs to be
            * changed to indicate an active or inactive state. */
-        case WM_DESTROY:
-          /* The WM_DESTROY message is sent when a window is being destroyed. It is sent to the
-           * window procedure of the window being destroyed after the window is removed from the
-           * screen. This message is sent first to the window being destroyed and then to the child
-           * windows (if any) as they are destroyed. During the processing of the message, it can
-           * be assumed that all child windows still exist. */
+          break;
+        }
+        case WM_DESTROY: {
+          /* The window is about to become invalid. Drop cached contacts without queuing events
+           * that would retain a pointer to the destroyed GHOST window. */
+          for (auto it = system->active_touch_contacts_.begin();
+               it != system->active_touch_contacts_.end();)
+          {
+            if (it->second.window == window) {
+              it = system->active_touch_contacts_.erase(it);
+            }
+            else {
+              ++it;
+            }
+          }
+          break;
+        }
         case WM_NCDESTROY: {
           /* The WM_NCDESTROY message informs a window that its non-client area is being
            * destroyed. The DestroyWindow function sends the WM_NCDESTROY message to the window

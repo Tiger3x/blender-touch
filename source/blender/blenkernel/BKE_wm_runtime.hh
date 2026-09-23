@@ -238,6 +238,11 @@ struct WindowRuntime {
    */
   uint64_t eventstate_prev_press_time_ms = 0;
 
+  /** Active contact translated to a left mouse press for one-finger UI interaction. */
+  std::optional<uint32_t> touch_emulated_mouse_id;
+  /** Suppress mouse emulation until every contact from a multi-touch sequence ends. */
+  bool touch_emulation_blocked = false;
+
   /** Private runtime info to show text in the status bar. */
   void *cursor_keymap_status = nullptr;
 

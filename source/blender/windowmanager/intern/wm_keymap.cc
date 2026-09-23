@@ -232,7 +232,7 @@ int WM_keymap_item_map_type_get(const wmKeyMapItem *kmi)
   if (ISKEYBOARD(kmi->type)) {
     return KMI_TYPE_KEYBOARD;
   }
-  if (ISMOUSE(kmi->type)) {
+  if (ISMOUSE(kmi->type) || ISTOUCH(kmi->type)) {
     return KMI_TYPE_MOUSE;
   }
   if (ISNDOF(kmi->type)) {

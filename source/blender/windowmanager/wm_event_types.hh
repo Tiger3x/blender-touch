@@ -23,6 +23,7 @@ enum {
   EVT_DATA_DRAGDROP = 3,
   EVT_DATA_NDOF_MOTION = 4,
   EVT_DATA_XR = 5,
+  EVT_DATA_TOUCH = 6,
 };
 
 /**
@@ -96,6 +97,13 @@ enum wmEventType : int16_t {
   /* Tablet/Pen Specific Events. */
   TABLET_STYLUS = 0x001a, /* 26 */
   TABLET_ERASER = 0x001b, /* 27 */
+
+  /* Raw multi-touch contact lifecycle events. Keep these separate from mouse events so touch
+   * input never mutates mouse/button state implicitly. */
+  TOUCHDOWN = 0x001c,   /* 28 */
+  TOUCHMOVE = 0x001d,   /* 29 */
+  TOUCHUP = 0x001e,     /* 30 */
+  TOUCHCANCEL = 0x001f, /* 31 */
 
 /* *** Start of keyboard codes. *** */
 
@@ -436,6 +444,9 @@ enum wmEventType : int16_t {
    ELEM((event_type), WHEELLEFTMOUSE, WHEELRIGHTMOUSE))
 /** Test whether the event is a mouse (trackpad) gesture. */
 #define ISMOUSE_GESTURE(event_type) ((event_type) >= MOUSEPAN && (event_type) <= MOUSESMARTZOOM)
+
+/** Test whether the event is a raw touch contact event. */
+#define ISTOUCH(event_type) ((event_type) >= TOUCHDOWN && (event_type) <= TOUCHCANCEL)
 
 /** Test whether the event is a NDOF event. */
 #define ISNDOF(event_type) ((event_type) >= _NDOF_MIN && (event_type) <= _NDOF_MAX)

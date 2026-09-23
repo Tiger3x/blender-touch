@@ -93,6 +93,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -771,6 +772,18 @@ struct wmTabletData {
   char is_motion_absolute;
 };
 
+/** Runtime payload for raw multi-touch contact events. */
+struct wmTouchData {
+  /** Stable platform contact identifier for the lifetime of one finger contact. */
+  uint32_t id;
+  /** Normalized pressure in the range 0.0 to 1.0 when the platform exposes it. */
+  float pressure;
+  /** Number of contacts active after this event is applied. */
+  uint32_t contact_count;
+  /** Whether this is the platform-designated primary contact. */
+  bool is_primary;
+};
+
 /**
  * Each event should have full modifier state.
  * event comes from event manager and from keymap.
@@ -861,6 +874,8 @@ struct wmEvent {
    * - #EVT_FILESELECT: uses #wmOperator.
    * - #EVT_XR_ACTION: uses #wmXrActionData (also #wmEvent::custom == #EVT_DATA_XR).
    * - #NDOF_MOTION: uses #wmNDOFMotionData (also #wmEvent::custom == #EVT_DATA_NDOF_MOTION).
+   * - #TOUCHDOWN / #TOUCHMOVE / #TOUCHUP / #TOUCHCANCEL: uses #wmTouchData
+   *   (also #wmEvent::custom == #EVT_DATA_TOUCH).
    * - #TIMER: uses #wmTimer (also #wmEvent::custom == #EVT_DATA_TIMER).
    */
   void *customdata;
