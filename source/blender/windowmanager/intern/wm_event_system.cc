@@ -5999,6 +5999,106 @@ static void wm_event_state_update_and_click_set(wmEvent *event,
                                          check_double_click);
 }
 
+static void wm_event_add_touch_mousemove(wmWindow *win, const int xy[2])
+{
+  wmEvent *event_state = win->runtime->eventstate;
+  wmEvent event = *event_state;
+  event.flag = eWM_EventFlag(0);
+  event.prev_type = event.type;
+  event.prev_val = event.val;
+  copy_v2_v2_int(event.xy, xy);
+  event.type = MOUSEMOVE;
+  event.val = KM_NOTHING;
+  event.tablet = {};
+  event.utf8_buf[0] = '\0';
+  wm_event_custom_clear(&event);
+
+  wmEvent *event_new = wm_event_add_mousemove(win, &event);
+  copy_v2_v2_int(event_state->xy, event_new->xy);
+  event_state->tablet.is_motion_absolute = event_new->tablet.is_motion_absolute;
+  event_state->tablet.tilt = event.tablet.tilt;
+}
+
+static void wm_event_add_touch_mousebutton(wmWindow *win,
+                                           const bool is_press,
+                                           const uint64_t event_time_ms)
+{
+  wmEvent *event_state = win->runtime->eventstate;
+  wmEvent event = *event_state;
+  event.flag = eWM_EventFlag(0);
+  event.prev_type = event.type;
+  event.prev_val = event.val;
+  event.type = LEFTMOUSE;
+  event.val = is_press ? KM_PRESS : KM_RELEASE;
+  event.tablet = {};
+  event.utf8_buf[0] = '\0';
+  wm_event_custom_clear(&event);
+
+  wm_event_state_update_and_click_set(&event,
+                                      event_time_ms,
+                                      event_state,
+                                      &win->runtime->eventstate_prev_press_time_ms,
+                                      is_press ? GHOST_kEventButtonDown : GHOST_kEventButtonUp);
+  wm_event_add_intern(win, &event);
+}
+
+static void wm_event_touch_mouse_emulation_update(wmWindow *win,
+                                                 wmEvent &touch_event,
+                                                 const GHOST_TEventType event_type,
+                                                 const wmTouchData &touch,
+                                                 const uint64_t event_time_ms)
+{
+  bke::WindowRuntime &runtime = *win->runtime;
+
+  /* A second contact turns the whole sequence into raw touch input. Release the emulated mouse
+   * button and wait until all contacts end before accepting another one-finger sequence. */
+  if (runtime.touch_emulated_mouse_id && touch.contact_count > 1) {
+    wm_event_add_touch_mousebutton(win, false, event_time_ms);
+    runtime.touch_emulated_mouse_id.reset();
+    runtime.touch_emulation_blocked = true;
+  }
+
+  switch (event_type) {
+    case GHOST_kEventTouchDown: {
+      if (runtime.touch_emulation_blocked || runtime.touch_emulated_mouse_id) {
+        return;
+      }
+      if (touch.contact_count == 1) {
+        runtime.touch_emulated_mouse_id = touch.id;
+        wm_event_add_touch_mousemove(win, touch_event.xy);
+        wm_event_add_touch_mousebutton(win, true, event_time_ms);
+      }
+      else if (touch.contact_count > 1) {
+        runtime.touch_emulation_blocked = true;
+      }
+      break;
+    }
+    case GHOST_kEventTouchMove: {
+      if (runtime.touch_emulated_mouse_id == touch.id) {
+        wm_event_add_touch_mousemove(win, touch_event.xy);
+      }
+      break;
+    }
+    case GHOST_kEventTouchUp:
+    case GHOST_kEventTouchCancel: {
+      if (runtime.touch_emulated_mouse_id == touch.id) {
+        if (event_type == GHOST_kEventTouchUp) {
+          wm_event_add_touch_mousemove(win, touch_event.xy);
+        }
+        wm_event_add_touch_mousebutton(win, false, event_time_ms);
+        runtime.touch_emulated_mouse_id.reset();
+        runtime.touch_emulation_blocked = touch.contact_count > 0;
+      }
+      else if (runtime.touch_emulation_blocked && touch.contact_count == 0) {
+        runtime.touch_emulation_blocked = false;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 /* Returns true when the two events corresponds to a press of the same key with the same modifiers.
  */
 static bool wm_event_is_same_key_press(const wmEvent &event_a, const wmEvent &event_b)
@@ -6212,8 +6312,13 @@ void wm_event_add_ghostevent(wmWindowManager *wm,
       event.customdata = wm_touch_data;
       event.customdata_free = true;
 
-      /* Touch coordinates intentionally do not update event_state->xy. Mouse and touch are
-       * independent pointing devices; gesture recognition consumes the raw touch stream. */
+      /* Preserve the raw touch event for gestures, then add explicit mouse events for one-finger
+       * UI interaction. Keep the mouse bridge ahead of raw touch in the queue so mouse-move
+       * deltas use the preceding contact position. */
+      wm_event_touch_mouse_emulation_update(
+          win, event, GHOST_TEventType(type), *wm_touch_data, event_time_ms);
+      event.prev_type = event_state->type;
+      event.prev_val = event_state->val;
       wm_event_add_intern(win, &event);
       break;
     }
